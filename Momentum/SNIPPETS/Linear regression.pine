@@ -1,0 +1,18 @@
+//@version=4
+study("Linear Regression Reversing Weighting System", overlay = true, max_bars_back = 1000, max_lines_count = 500)
+    
+int Trendlenght     = input(1500)
+int Deltalenght     = input(200)
+float Regression      = linreg(close, Trendlenght, 0) - linreg(close, Trendlenght, 1)
+
+
+float Increment       = sma(max( Regression                  - Regression[Deltalenght], 0 ),Deltalenght)
+float Decrement       = sma(max( Regression[Deltalenght] - Regression                , 0 ),Deltalenght)
+float Delta           = Decrement  == 0.0  ? 0.0     : -(Increment-Decrement)/(Increment+Decrement)
+
+
+plot(Regression, color= color.blue)
+plot(Increment , color= color.green)
+plot(-Decrement , color= color.red)
+plot(Delta , color= color.black)
+

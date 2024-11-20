@@ -1,0 +1,35 @@
+GRADE( iterate )=>
+    iterate == 1 ?	0.857 :
+    iterate == 2 ?	0.914 :
+    iterate == 3 ?	0.958 :
+    iterate == 4 ?	0.989 :
+    iterate == 5 ?	1.000 :
+    iterate == 6 ?	0.991 :
+    iterate == 7 ?	0.963 :
+    iterate == 8 ?	0.971 :
+    iterate == 9 ?	0.856 :
+    iterate == 10 ?	0.785 :
+    iterate == 11 ?	0.707 :
+    iterate == 12 ?	0.626 :
+    iterate == 13 ?	0.545 :
+    iterate == 14 ?	0.466 :
+    iterate == 15 ?	0.393 :
+    iterate == 16 ?	0.326 :
+    iterate == 17 ?	0.266 :
+    iterate == 18 ?	0.214 :
+    iterate == 19 ?	0.170 :
+    iterate == 20 ?	0.133 :
+    iterate == 21 ?	0.103 :
+    iterate == 22 ?	0.078 :
+    iterate == 23 ?	0.059 :
+    iterate == 24 ?	0.043 :
+    iterate == 25 ?	0.032 :
+    iterate == 26 ?	0.023 :
+    iterate == 27 ?	0.016 :
+    iterate == 28 ?	0.012 :
+    iterate == 29 ?	0.008 :
+    iterate == 30 ?	0.006 :
+    iterate == 31 ?	0.004 :
+    iterate == 32 ?	0.000 :
+    iterate == 33 ?	0.000 :
+    0.000

@@ -1,0 +1,389 @@
+//@version= 4
+//STUDY/STRATEGY SETTINGS
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+strategy( title= "✖ 𝗠𝗼𝗺𝗲𝗻𝘁𝘂𝗺"	, overlay= true	, format= format.price	, precision= 6	, initial_capital= 10000	, commission_value= 0.2	, commission_type= strategy.commission.percent	)
+//COLORSPACE
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// PUT COLORS IN ARRAY
+
+//SECURITIES VARS
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+//LEVERAGE
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+// INSTANTIATE VARS HERE TO BE USED FOR CORRECTIONS ON INPUTS FUNCTIONS STRATEGY
+
+//INPUTS
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+//MODUS
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+MODUS					= input( defval= "Scope"	, options= ["Scope", "Weighting", "Triggering", "Position", "OpenInterest", "Drawdown", "PNL"]	, title= "Display"		)
+
+//TIME
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+//TIME_SESSION= input("0", type= input.session, title= "Sessions")
+TIME_DATE_START			= input( defval= timestamp("01 Jan 2018 00:00 +0000")								, type= input.time		, title= "Start Time"			)
+TIME_DATE_END			= input( defval= timestamp("01 Jan 2022 00:00 +0000")								, type= input.time		, title= "End Time"				)
+TIME_ALLOW				= time >= TIME_DATE_START and time <= TIME_DATE_END //and time(timeframe.period, TIME_SESSION)
+
+//SCOPE
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+SCOPE_GRADATION			= input( defval= "Logarithmic"	, options= ["Linear", "Logarithmic"]										, title= "Scalar Gradation"		)
+SCOPE_RATIO				= input( defval= 1.2				, minval= 1.000			, step= 0.005			, type= input.float		, title= "Scalar Ratio"			)	
+SCOPE_MAX				= input( defval= 5400.0			, minval= 128.0				, step= 100.0			, type= input.float		, title= "Scalar Maximum"		) * SCOPE_RATIO
+SCOPE_MIN				= iff( SCOPE_GRADATION == "Linear" , SCOPE_MAX / 32 , SCOPE_MAX / pow( SCOPE_RATIO , 32 ) )
+
+//TRIGGERING
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+PULSE_LENGHT			= input( defval= 32				, minval= 0.0				, step= 2				, type= input.float		, title= "Pulse momentum"		) // REPRESENTS ITERATE SHOWN IN SCOPE, NOT PULSE LENGHT
+PULSE_HI				= input( defval= 0.20			, minval= 0.0				, step= 0.05			, type= input.float		, title= "Pulse High"			) // REPLACE WITH RANGE, APPLY BIAS WITH TRENDING TRANSFORMATION
+PULSE_LO				= input( defval= -0.20			, maxval= 0.0				, step= 0.05			, type= input.float		, title= "Pulse Low"			) 
+
+//TRENDING CORRECTION TEST
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+a						= input( defval= -0.06			, minval= -1	, maxval= 1	, step= 0.01			, type= input.float		, title= "a"					)	
+
+//STATISTICS
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+STATS_SHOW				= input( defval= true																, type= input.bool		, title= "Show statistics"		)
+
+//FUNCTIONS
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+//AVERAGING
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+//ROLLING MOVING AVERAGE
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+RMA( SERIES , LENGHT )= >
+	ALPHA				= 1 / LENGHT
+	float SUM			= na
+	SUM					:= ALPHA * SERIES + ( 1.0 - ALPHA ) * nz( SUM[1] )
+	
+//INDEXING
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+//AUGMENTED RELATIVE MOMENTUM INDEX
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+ARMI( SOURCE , LENGHT , MOMENTUM )= >
+	INC					= RMA( max( SOURCE- sma(SOURCE, MOMENTUM*2)	, 0 ), LENGHT)
+	DEC					= RMA( max( sma(SOURCE, MOMENTUM*2)- SOURCE	, 0 ), LENGHT)
+	RMI					= DEC == 0.0? 0.0 : -(INC-DEC)/(INC+DEC)
+
+//SCALING
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+//SCALAR Y VALUE
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+SCALAR( ITERATION )= >
+	iff( SCOPE_GRADATION == "Linear" , ( SCOPE_MAX - (( SCOPE_MAX / 32 ) * ITERATION)) / SCOPE_RATIO , SCOPE_MAX / pow( SCOPE_RATIO , ITERATION ) )
+
+//CORRECTIONS
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+//TREND CORRECTION
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+TRENDING(y, a)= >
+	b					= a == 0 ? 1 : a / abs(a)
+	x					= ((2*(pow((y+1)/2, -b*(pow(a-b, -b))))-1) + -(2*(pow((-y+1)/2, b*(pow(b-a, b))))-1))/2
+
+//VOLATILITY CORRECTION
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+//GRAPHICAL
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+//PIXELING
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+PIXEL( SOURCE , ITERATION )= > 
+	LENGHT				= SCALAR( ITERATION )
+	return				= TRENDING(ARMI( SOURCE , LENGHT , int( LENGHT / 10 ) ), a)//ARMI( SOURCE , LENGHT , int( LENGHT / 10 ) )//
+
+//GRAPHICAL
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+//SHADING
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+SHADE(x)= >
+	out					= x>0.96875?#ffa9e0FF:x>0.9375?#ffa6dcF0:x>0.90625?#fe9ed8E8:x>0.875?#fc97d1E0:x>0.84375?#fa90caD8:x>0.8125?#fa8bc3D0:x>0.78125?#f37db0C8:x>0.75?#ee74a3C0:x>0.71875?#e96d98B8:x>0.6875?#e46890B0:x>0.65625?#db6083A8:x>0.625?#d65a7aA0:x>0.59375?#cb506c98:x>0.5625?#c44a6390:x>0.53125?#ba465b88:x>0.5?#b6475a80:x>0.46875?#b14a5d78:x>0.4375?#ae4d5e70:x>0.40625?#aa506168:x>0.375?#a7536360:x>0.34375?#a3576658:x>0.3125?#9f5a6750:x>0.28125?#9b5e6a48:x>0.25?#97616c40:x>0.21875?#94646d38:x>0.1875?#8f677030:x>0.15625?#8c6a7128:x>0.125?#896d7220:x>0.09375?#86707518:x>0.0625?#84737610:x>0.03125?#80767908:x<-0.96875?#b9fdceFF:x<-0.9375?#affcc9F0:x<-0.90625?#a6fac5E8:x<-0.875?#9cf7c1E0:x<-0.84375?#90f3baD8:x<-0.8125?#87f0b6D0:x<-0.78125?#7aeab1C8:x<-0.75?#71e5adC0:x<-0.71875?#67e0abB8:x<-0.6875?#5dd9a4B0:x<-0.65625?#55d29fA8:x<-0.625?#50cc9dA0:x<-0.59375?#4ac59a98:x<-0.5625?#46be9790:x<-0.53125?#44b79588:x<-0.5?#48b39480:x<-0.46875?#4baf9278:x<-0.4375?#4fab9070:x<-0.40625?#52a88f68:x<-0.375?#55a48e60:x<-0.34375?#599f8c58:x<-0.3125?#5d9c8b50:x<-0.28125?#60988948:x<-0.25?#63938740:x<-0.21875?#678f8438:x<-0.1875?#67908530:x<-0.15625?#6e888128:x<-0.125?#6e888120:x<-0.09375?#74827f18:x<-0.0625?#75817d10:x<-0.03125?#7b7b7b08:#00000000
+
+//WEIGHTING
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+//GRADING
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+GRADE( iterate )= >
+	iterate	 == 1 ?		0.857 :
+	 iterate == 2 ?		0.914 :
+	 iterate == 3 ?		0.958 :
+	 iterate == 4 ?		0.989 :
+	 iterate == 5 ?		1.000 :
+	 iterate == 6 ?		0.991 :
+	 iterate == 7 ?		0.963 :
+	 iterate == 8 ?		0.971 :
+	 iterate == 9 ?		0.856 :
+	 iterate == 10 ?	0.785 :
+	 iterate == 11 ?	0.707 :
+	 iterate == 12 ?	0.626 :
+	 iterate == 13 ?	0.545 :
+	 iterate == 14 ?	0.466 :
+	 iterate == 15 ?	0.393 :
+	 iterate == 16 ?	0.326 :
+	 iterate == 17 ?	0.266 :
+	 iterate == 18 ?	0.214 :
+	 iterate == 19 ?	0.170 :
+	 iterate == 20 ?	0.133 :
+	 iterate == 21 ?	0.103 :
+	 iterate == 22 ?	0.078 :
+	 iterate == 23 ?	0.059 :
+	 iterate == 24 ?	0.043 :
+	 iterate == 25 ?	0.032 :
+	 iterate == 26 ?	0.023 :
+	 iterate == 27 ?	0.016 :
+	 iterate == 28 ?	0.012 :
+	 iterate == 29 ?	0.008 :
+	 iterate == 30 ?	0.006 :
+	 iterate == 31 ?	0.004 :
+	 iterate == 32 ?	0.000 :
+	 iterate == 33 ?	0.000 :
+	 0.000
+
+//VALUATE
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+VALUATE( Series )= >
+	floorvalue				= 0.0
+	posvalue				= 0.0
+	negvalue				= 0.0
+	
+	for i= 1 to 32 // 1 to and 24, is to 25
+		a					= PIXEL( Series , i )
+		posvalue := posvalue + ( (a>0?a:0) * GRADE(i) )
+		negvalue := negvalue + ( (a<0?a:0) * GRADE(i) )
+		
+	floorvalue				:= PIXEL( close , 32 ) > 0 ? pow(posvalue, 2) : - pow(negvalue, 2)
+
+//TRIGGERING
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+//TRIGGER
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+TRIGGER( Series )= >
+	PIXEL( Series , PULSE_LENGHT ) 
+
+//STRATEGY
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+//WEIGHTING
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+TVAL						= strategy.initial_capital
+XVAL						= -VALUATE(close) 
+float ACCOUNT_PERCENT		= 1
+ACCOUNT_PERCENT				:= fixnan(ACCOUNT_PERCENT[1])
+XVAL						:= XVAL * ACCOUNT_PERCENT
+
+//TRIGGERING
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+PULSE						= TRIGGER(close)
+LONG						= PULSE > PULSE_HI ? true : false
+SHORT						= PULSE < PULSE_LO ? true : false
+
+//POSITIONING
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+float CONTRACTS_OPEN_USD	= na
+CONTRACTS_OPEN_USD			:= nz(CONTRACTS_OPEN_USD[1])
+
+float CONTRACTS_OPEN_BTC	= na
+CONTRACTS_OPEN_BTC			:= nz(CONTRACTS_OPEN_BTC[1])
+
+float CONTRACTS_OPEN_USDX	= na
+CONTRACTS_OPEN_USDX			:= nz(CONTRACTS_OPEN_USDX[1])
+
+string POSITION_STATUS		= CONTRACTS_OPEN_BTC > 0 ? "LONG" : CONTRACTS_OPEN_BTC < 0 ? "SHORT" : "NULL"
+floatPOSITION_SIZE_BTC		= CONTRACTS_OPEN_BTC
+
+float POSITION_AVG_PRICE	= na
+POSITION_AVG_PRICE			:= nz(POSITION_AVG_PRICE[1])
+
+float PROFITS				= na
+PROFITS						:= nz(PROFITS[1])
+
+if (TIME_ALLOW and LONG and POSITION_STATUS == "NULL") //ADD TO POSITION
+	CONTRACTS_OPEN_USD		:= CONTRACTS_OPEN_USD + abs(XVAL)
+	CONTRACTS_OPEN_BTC		:= CONTRACTS_OPEN_BTC + abs(XVAL/close)
+if (TIME_ALLOW and LONG and POSITION_STATUS == "LONG") //ADD TO POSITION
+	CONTRACTS_OPEN_USD		:= CONTRACTS_OPEN_USD + abs(XVAL)
+	CONTRACTS_OPEN_BTC		:= CONTRACTS_OPEN_BTC + abs(XVAL/close)
+	
+if (TIME_ALLOW and LONG and POSITION_STATUS == "SHORT" and abs(XVAL/close) < abs(POSITION_SIZE_BTC)) // REDUCE POSITION
+	CONTRACTS_OPEN_BTC		:= CONTRACTS_OPEN_BTC + abs(XVAL/close)
+	CONTRACTS_OPEN_USD		:= CONTRACTS_OPEN_BTC * POSITION_AVG_PRICE
+	
+if (TIME_ALLOW and LONG and POSITION_STATUS == "SHORT" and abs(XVAL/close) > abs(POSITION_SIZE_BTC)) // CLOSE AND OPEN OPPOSITE POSITION WITH REMAINDER
+	OVERHEAD_BTC			= POSITION_SIZE_BTC - abs(XVAL/close)
+	OVERHEAD_USD			= OVERHEAD_BTC * close
+	CONTRACTS_OPEN_USD		:= 0 - OVERHEAD_USD
+	CONTRACTS_OPEN_BTC		:= 0 - OVERHEAD_BTC
+	
+if (TIME_ALLOW and LONG and POSITION_STATUS == "SHORT" and abs(XVAL/close) == abs(POSITION_SIZE_BTC)) // CLOSE POSITION
+	CONTRACTS_OPEN_USD		:= 0
+	CONTRACTS_OPEN_BTC		:= 0
+
+if (TIME_ALLOW and SHORT and POSITION_STATUS == "NULL") //ADD TO POSITION
+	CONTRACTS_OPEN_USD		:= CONTRACTS_OPEN_USD - abs(XVAL)
+	CONTRACTS_OPEN_BTC		:= CONTRACTS_OPEN_BTC - abs(XVAL/close)
+if (TIME_ALLOW and SHORT and POSITION_STATUS == "SHORT") //ADD TO POSITION
+	CONTRACTS_OPEN_USD		:= CONTRACTS_OPEN_USD - abs(XVAL)
+	CONTRACTS_OPEN_BTC		:= CONTRACTS_OPEN_BTC - abs(XVAL/close)
+	
+if (TIME_ALLOW and SHORT and POSITION_STATUS == "LONG" and abs(XVAL/close) < abs(POSITION_SIZE_BTC)) // REDUCE POSITION
+	CONTRACTS_OPEN_BTC		:= CONTRACTS_OPEN_BTC - abs(XVAL/close)
+	CONTRACTS_OPEN_USD		:= CONTRACTS_OPEN_BTC * POSITION_AVG_PRICE
+	
+if (TIME_ALLOW and SHORT and POSITION_STATUS == "LONG" and abs(XVAL/close) > abs(POSITION_SIZE_BTC)) // CLOSE AND OPEN OPPOSITE POSITION WITH REMAINDER
+	OVERHEAD_BTC			= abs(XVAL/close) - POSITION_SIZE_BTC
+	OVERHEAD_USD			= OVERHEAD_BTC * close
+	CONTRACTS_OPEN_USD		:= 0 - OVERHEAD_USD
+	CONTRACTS_OPEN_BTC		:= 0 - OVERHEAD_BTC
+	
+if (TIME_ALLOW and SHORT and POSITION_STATUS == "LONG" and abs(XVAL/close) == abs(POSITION_SIZE_BTC)) // CLOSE POSITION
+	CONTRACTS_OPEN_USD		:= 0
+	CONTRACTS_OPEN_BTC		:= 0
+
+if (TIME_ALLOW and SHORT)
+	CONTRACTS_OPEN_USDX		:= CONTRACTS_OPEN_USDX - abs(XVAL)
+if (TIME_ALLOW and LONG)
+	CONTRACTS_OPEN_USDX		:= CONTRACTS_OPEN_USDX + abs(XVAL)
+
+
+POSITION_AVG_PRICE			:= CONTRACTS_OPEN_USD / CONTRACTS_OPEN_BTC // ICLUDES PROFITS
+
+//ACCOUNT
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+
+ACCOUNT_NET_PROFIT			= CONTRACTS_OPEN_USD - CONTRACTS_OPEN_USDX
+ACCOUNT_NET_PROFIT_CHANGE	= ACCOUNT_NET_PROFIT > ACCOUNT_NET_PROFIT[1] ? #00AA88CC: ACCOUNT_NET_PROFIT < ACCOUNT_NET_PROFIT[1] ? color.red : #00000000
+
+float FUNDING_FEES			= na
+FUNDING_FEES				:= nz(FUNDING_FEES[1])
+
+//!!! PLACEMENT FEES TAKER FEES
+
+if (hour == 02 and minute == 00) or (hour == 10 and minute == 00) or (hour == 18 and minute == 00) // DOESNT WORK ON 4H 6H 8H 12H D
+	FUNDING_FEES			:= FUNDING_FEES[1] + (0.0001 * abs(CONTRACTS_OPEN_USD))
+
+ACCOUNT_TOTAL				= strategy.initial_capital + ACCOUNT_NET_PROFIT - FUNDING_FEES //REDUCED BY FUNDING FEES !!!!!!!! AND PLACEMENT FEES
+ACCOUNT_PERCENT				:= ACCOUNT_TOTAL / strategy.initial_capital
+
+//EXECUTION
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+	
+if (TIME_ALLOW and LONG)
+	strategy.order("long", true, abs(XVAL/close))
+
+if (TIME_ALLOW and SHORT)
+	strategy.order("short", false, abs(XVAL/close))
+
+//SECURITIES
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+//LEVERAGE
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+
+
+
+
+//VISUALIZATION
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+//SCOPE
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+
+//TRIGGERING
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+float longprice				= na
+longprice					:= iff(TIME_ALLOW and MODUS == "Position" and LONG[1], open, na)
+float shortprice			= na
+shortprice					:= iff(TIME_ALLOW and MODUS == "Position" and SHORT[1], open, na)
+plotcandle( longprice*1.001		, longprice*1.001	, longprice*0.999	, longprice*0.999		, color= #2962ff		, bordercolor= #2962ff			, wickcolor= #2962ff							, title= "Long")
+plotcandle( shortprice*1.001	, shortprice*1.001	, shortprice*0.999	, shortprice *0.999		, color= color.red		, bordercolor= color.red		, wickcolor= color.red							, title= "Short")
+
+//WEIGHTING
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+PVAL						= plot( iff(MODUS == "Weighting", XVAL/close, na)					, color= color.gray														, offset= 1						, title= 'VALUE')
+ZVAL						= plot( iff(MODUS == "Weighting", 0, na)							, color= #FFFFFF00																						, title= "#####")
+ICOL						= XVAL < 0 ? color.green : color.red
+fill( PVAL , ZVAL																				, color= ICOL																							, title= "#####")
+
+//POSITION
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+PSP							= POSITION_STATUS == "LONG" ? color.blue : color.red
+PAP							= plot( iff(MODUS == "Position", POSITION_AVG_PRICE, na)			, color= PSP			, style= plot.style_stepline	, linewidth= 2	, offset= 1						, title= "#####")
+PCP							= plot( iff(MODUS == "Position", close, na) 						, color= #00000000		, style= plot.style_stepline					, offset= 1						, title= "#####")
+PWP							= POSITION_STATUS == "LONG" ? POSITION_AVG_PRICE < close ? color.green : color.red : POSITION_STATUS == "SHORT" ? POSITION_AVG_PRICE > close ? color.green : color.red : color.purple //POSITION_AVG_PRICE > close ? color.green : color.red
+fill( PAP , PCP																					, color= PWP																							, title= "#####")
+
+//OPENINTEREST
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+LEVERAGE					= CONTRACTS_OPEN_USD / ACCOUNT_TOTAL
+// plot( iff(MODUS == "OpenInterest", CONTRACTS_OPEN_USD, na) , color= #00AA88CC , style= plot.style_stepline, offset= 1)
+
+POI							= plot( iff(MODUS == "OpenInterest", LEVERAGE, na)					, color= PSP			, style= plot.style_stepline	, linewidth= 2	, offset= 1						, title= "#####")
+PZE							= plot( iff(MODUS == "OpenInterest", 0, na)							, color= #00000000																						, title= "#####")
+fill( POI , PZE																					, color= PWP																							, title= "#####")
+//plot( iff(MODUS == "OpenInterest", CONTRACTS_OPEN_USDX, na) , color= #AAAA88CC , style= plot.style_stepline, offset= 1)
+// plot( iff(MODUS == "OpenInterest", CONTRACTS_OPEN_BTC, na) , color= #CC8800CC , style= plot.style_stepline, offset= 1)
+
+//DRAWDOWN
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ // USE LOW AND HIGH NOT CLOSED FOR EXTREMA 
+DRAW						= POSITION_STATUS == "LONG" ? close / POSITION_AVG_PRICE : POSITION_AVG_PRICE / close
+plot( iff(MODUS == "Drawdown", DRAW, na)														, color= #00AA88CC		, style= plot.style_stepline					, offset= 1	, trackprice= true	, title= "#####")
+plot( iff(MODUS == "Drawdown", 1, na)															, color= #00AA88CC		, style= plot.style_stepline					, offset= 1	, trackprice= true	, title= "#####")
+DRAWLINE					= lowest(DRAW, 1)
+DRAWLINE					:= DRAWLINE[1] > DRAWLINE ? DRAWLINE : DRAWLINE[1] < DRAWLINE ? DRAWLINE[1] : DRAWLINE
+plot( iff(MODUS == "Drawdown", DRAWLINE, na)													, color= #00AA88CC		, show_last= 1												, trackprice= true	, title= "#####")
+DRAWDOWN					= round( ( 1 - DRAWLINE) * 100 , 2) 
+DRAWDOWNLABEL				= label.new( iff(MODUS == "Drawdown", bar_index , na), DRAWLINE , 'Max Drawdown from position '+tostring(DRAWDOWN)+'%', color= #00AA8888, textcolor= color.white , style= label.style_labeldown , yloc= yloc.price )
+label.delete(DRAWDOWNLABEL[1])
+
+float DRAWCOUNT= 0
+DRAWCOUNT					:= na(DRAW) ?DRAWCOUNT : DRAWCOUNT[1]+ 1
+
+DRAWAVG						= cum(DRAW) / DRAWCOUNT
+plot( iff(MODUS == "Drawdown", DRAWAVG, na)														, color= #FFAA88CC																						, title= "#####")
+//PROFITNLOSS
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+
+ACCOUNT_PROFIT_PLOT			= plot(iff(MODUS == "PNL", ACCOUNT_NET_PROFIT - FUNDING_FEES, na)	, color= color.gray		, style= plot.style_stepline	, linewidth= 1	, offset= 1						, title= "#####")
+ACCOUNT_ZERO_PLOT			= plot(iff(MODUS == "PNL", 0, na)									, color= color.gray		, style= plot.style_stepline	, linewidth= 1	, offset= 1						, title= "#####")
+ACCOUNT_INITIAL_PLOT		= plot(iff(MODUS == "PNL", 0 - strategy.initial_capital, na)		, color= color.white	, style= plot.style_stepline	, linewidth= 1	, offset= 1						, title= "#####")
+fill(ACCOUNT_PROFIT_PLOT, ACCOUNT_ZERO_PLOT, color= ACCOUNT_NET_PROFIT_CHANGE, transp= 0)
+
+//STATISTICS
+//▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+STATS_OFFSET				= MODUS == "Position" ? size.huge : size.normal
+if STATS_SHOW 
+	var Table= table.new(position.top_left, columns= 2, rows= 16, border_width= 1, bgcolor= #FFFFFFBB, border_color= #00000000)
+	table.cell(table_id= Table, column= 0, row= 0, text_size= STATS_OFFSET, text_color= #80808080, text_halign= text.align_left, bgcolor= #00000000, text= "")
+	table.cell(table_id= Table, column= 1, row= 0, text_size= STATS_OFFSET, text_color= #80808080, text_halign= text.align_right, bgcolor= #00000000, text= "")
+	table.cell(table_id= Table, column= 0, row= 1, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #80808080, text= "𝗜𝗻𝗶𝘁𝗶𝗮𝗹 𝗖𝗮𝗽𝗶𝘁𝗮𝗹")
+	table.cell(table_id= Table, column= 1, row= 1, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= tostring(strategy.initial_capital) + " USD")
+	table.cell(table_id= Table, column= 0, row= 2, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #80808080, text= "𝗡𝗲𝘁 𝗣𝗿𝗼𝗳𝗶𝘁")
+	table.cell(table_id= Table, column= 1, row= 2, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= tostring(int(ACCOUNT_NET_PROFIT - FUNDING_FEES)) + " USD")
+	table.cell(table_id= Table, column= 0, row= 3, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #00000000, text= "𝗚𝗿𝗼𝘀𝘀 𝗣𝗿𝗼𝗳𝗶𝘁")
+	table.cell(table_id= Table, column= 1, row= 3, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= tostring(int(ACCOUNT_NET_PROFIT)) + " USD")
+	table.cell(table_id= Table, column= 0, row= 4, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #00000000, text= "𝗚𝗿𝗼𝘀𝘀 𝗟𝗼𝘀𝘀")
+	table.cell(table_id= Table, column= 1, row= 4, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= "Missing" + " USD")
+	table.cell(table_id= Table, column= 0, row= 5, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #00000000, text= "𝗧𝘂𝗿𝗻𝗼𝘃𝗲𝗿")
+	table.cell(table_id= Table, column= 1, row= 5, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= "Missing" + " USD")
+	table.cell(table_id= Table, column= 0, row= 6, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #00000000, text= "𝗖𝗼𝗺𝗶𝘀𝘀𝗶𝗼𝗻 𝗙𝗲𝗲𝘀")
+	table.cell(table_id= Table, column= 1, row= 6, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= "Missing" + " USD")
+	table.cell(table_id= Table, column= 0, row= 7, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #00000000, text= "𝗙𝘂𝗻𝗱𝗶𝗻𝗴 𝗙𝗲𝗲𝘀")
+	table.cell(table_id= Table, column= 1, row= 7, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= tostring(int(FUNDING_FEES)) + " USD")
+	table.cell(table_id= Table, column= 0, row= 8, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #00000000, text= "𝗠𝗮𝘅 𝗗𝗿𝗮𝘄𝗱𝗼𝘄𝗻")
+	table.cell(table_id= Table, column= 1, row= 8, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= tostring(DRAWLINE) + " %")
+	table.cell(table_id= Table, column= 0, row= 9, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #00000000, text= "𝗠𝗮𝘅 𝗢𝗽𝗲𝗻𝗜𝗻𝘁𝗲𝗿𝗲𝘀𝘁")
+	table.cell(table_id= Table, column= 1, row= 9, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= "Missing" + " USD")
+	table.cell(table_id= Table, column= 0, row= 10, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #00000000, text= "𝗠𝗮𝘅 𝗟𝗲𝘃𝗲𝗿𝗮𝗴𝗲")
+	table.cell(table_id= Table, column= 1, row= 10, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= "Missing" + " x")
+	table.cell(table_id= Table, column= 0, row= 11, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #00000000, text= "𝗟𝗶𝗾𝘂𝗶𝗱𝗮𝘁𝗶𝗼𝗻")
+	table.cell(table_id= Table, column= 1, row= 11, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= "Missing")
+	table.cell(table_id= Table, column= 0, row= 12, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #00000000, text= "𝗨𝗻𝗱𝗲𝗿𝘄𝗮𝘁𝗲𝗿 𝗥𝗮𝘁𝗶𝗼")
+	table.cell(table_id= Table, column= 1, row= 12, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= "Missing" + " %")
+	table.cell(table_id= Table, column= 0, row= 13, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #00000000, text= "𝗛𝗢𝗗𝗟 𝗥𝗮𝘁𝗶𝗼")
+	table.cell(table_id= Table, column= 1, row= 13, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= "Missing" + " %")
+	table.cell(table_id= Table, column= 0, row= 14, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #00000000, text= "𝗣𝗿𝗼𝗳𝗶𝘁 𝗥𝗮𝘁𝗶𝗼")
+	table.cell(table_id= Table, column= 1, row= 14, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= "Missing" + " %")
+	table.cell(table_id= Table, column= 0, row= 15, text_size= size.small, text_color= color.black, text_halign= text.align_left, bgcolor= #00000000, text= "𝗧𝗿𝗮𝗱𝗲 𝗥𝗮𝘁𝗶𝗼")
+	table.cell(table_id= Table, column= 1, row= 15, text_size= size.small, text_color= color.black, text_halign= text.align_right, bgcolor= #00000000, text= "Missing" + " %")
+	
+	
+	
+	
+	
